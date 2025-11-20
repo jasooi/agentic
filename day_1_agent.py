@@ -1,7 +1,7 @@
 # Get the GOOGLE_API_KEY
 # TODO: use a more secure way of obtaining API key
 import os
-os.environ["GOOGLE_API_KEY"] = "AIzaSyAHMQg7DBcw-bsmYlSNH2U8LAXa8LOTkbQ"
+os.environ["GOOGLE_API_KEY"] = "REDACTED"
 
 import random
 from google import genai
