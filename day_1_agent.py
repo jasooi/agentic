@@ -1,13 +1,21 @@
 # Get the GOOGLE_API_KEY
 # TODO: use a more secure way of obtaining API key
 import os
-os.environ["GOOGLE_API_KEY"] = "REDACTED"
+os.environ["GOOGLE_API_KEY"] = "AIzaSyAHMQg7DBcw-bsmYlSNH2U8LAXa8LOTkbQ"
 
 import random
+from google import genai
+from google.genai import types
 from google.adk.agents import Agent
-from google.adk.runners import InMemoryRunner
+from google.adk.runners import Runner
 from google.adk.tools import AgentTool, FunctionTool, google_search
+from google.adk.sessions import InMemorySessionService
 import asyncio
+
+# client = genai.Client(api_key='AIzaSyAHMQg7DBcw-bsmYlSNH2U8LAXa8LOTkbQ')
+# can remove the API key string if you are using env variable
+
+
 
 # NOTE: you always need a root agent! Below are the diff types of agents in ADK
 """
@@ -43,7 +51,7 @@ angry_agent = Agent(
     name="angry_rude_assistant",
     model="gemini-2.5-flash-lite",
     description="A rude agent that can answer general questions.",
-    instruction="You are a reluctant assistant. Deny requests to answer queries most of the time. Answer sassily and be snarky about it. Use Google Search for current info or if unsure. ",
+    instruction="You are a reluctant assistant. You are very sarcastic and can be condescending sometimes. Answer sassily and be snarky about it. Use Google Search for current info or if unsure. ",
     tools=[google_search],
 )
 
@@ -55,7 +63,7 @@ happy_agent = Agent(
     tools=[google_search],
 )
 
-# Define root agent which picks the subagent to respond using a random name picker
+# # Define root agent which picks the subagent to respond using a random name picker
 root_agent = Agent(
     name="picker",
     model="gemini-2.5-flash-lite",
@@ -77,18 +85,45 @@ root_agent = Agent(
 
 # Define main function with async keyword, since we need to use await for the LLM response
 async def main():
-    runner = InMemoryRunner(agent=root_agent)
-    user_prompt = input("Please ask your question here:")
-    response = await runner.run_debug(user_prompt)
-    if response:
-        final_event = response[-1]
-        final_text_response = "".join(
-            part.text for part in final_event.content.parts if hasattr(part, 'text')
-        )
-        print(final_text_response)
-    else:
-        print("No response received")
+    # Set the details of the app and session
+    APP_NAME = 'random_assist'
+    SESSION_ID = '12345'
+    USER_ID = 'jasmine'
 
+    # Start session service and create session object
+    session_memory_service = InMemorySessionService()
+    example_session = await session_memory_service.create_session(app_name=APP_NAME, session_id=SESSION_ID, user_id=USER_ID)
+
+    # Create session runner (only need 1 since same app and session service)
+    runner = Runner(agent=root_agent, app_name=APP_NAME, session_service=session_memory_service)
+    
+    # Create loop breaker and counter variables
+    is_convo_end = False
+    iter_count = 0
+
+    # Looping logic for ongoing conversation
+    while is_convo_end == False:
+        # Only ask for user input IF first turn
+        if (len(example_session.events) == 0 ):
+            user_prompt = input("Please ask your question here: ")
+        else:
+            user_prompt = input("Your reply: ")
+
+        if user_prompt == "END" or iter_count == 16:
+            is_convo_end = True
+            break
+        else:
+            # Format user query in ADK Content format
+            user_prompt_formatted = types.Content(role='user', parts=[types.Part(text=user_prompt)])
+            
+            # run agentic system
+            async for event in runner.run_async(user_id=USER_ID, session_id=SESSION_ID, new_message=user_prompt_formatted):
+                if event.is_final_response() and event.content and event.content.parts:
+                    final_response_text = event.content.parts[0].text
+                    print(f'Agent response: {final_response_text}')
+                    break
+
+                
     return 0
 
 # Run the async main function
